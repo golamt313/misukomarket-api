@@ -9,6 +9,12 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIo(server);
 
+const cors = require('cors');
+app.use(cors({
+  origin: 'http://mitsukomarket.s3-website.eu-north-1.amazonaws.com'
+}));
+
+
 app.use(express.json());
 
 // Database connection
