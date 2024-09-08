@@ -32,17 +32,21 @@ db.connect(err => {
 
 // Middleware to verify JWT
 const authenticateJWT = (req, res, next) => {
-  const token = req.header('Authorization')?.split(' ')[1];
-  if (token) {
-    jwt.verify(token, 'your_jwt_secret_key', (err, user) => {
-      if (err) return res.sendStatus(403);
-      req.user = user;
-      next();
-    });
-  } else {
-    res.sendStatus(401);
-  }
-};
+    const token = req.header('Authorization')?.split(' ')[1];
+    
+    if (token) {
+      jwt.verify(token, 'your_jwt_secret_key', (err, user) => {
+        if (err) {
+          console.error('JWT verification error:', err);
+          return res.sendStatus(403);
+        }
+        req.user = user;
+        next();
+      });
+    } else {
+      res.sendStatus(401);
+    }
+  };  
 
 // Routes
 app.post('/register', (req, res) => {
