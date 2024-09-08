@@ -48,12 +48,27 @@ const authenticateJWT = (req, res, next) => {
 app.post('/register', (req, res) => {
     const { username, password } = req.body;
 
-    const query = `INSERT INTO users (username, password) VALUES (?, bcrypt(?))`;
-    db.query(query, [username, password], (err, result) => {
-        if (err) return res.status(500).send('Error registering user');
+    if (!username || !password) {
+        return res.status(400).send('Username and password are required');
+    }
+
+    bcrypt.hash(password, 10, (err, hashedPassword) => {
+        if (err) {
+        console.error('Error hashing password:', err);  // Log error
+        return res.status(500).send('Error hashing password');
+        }
+
+        const query = 'INSERT INTO users (username, password) VALUES (?, ?)';
+        db.query(query, [username, hashedPassword], (err, result) => {
+        if (err) {
+            console.error('Error inserting user into database:', err);  // Log error
+            return res.status(500).send('Error registering user');
+        }
+
         res.status(201).send('User registered');
+        });
     });
-});
+});  
   
 
 app.post('/login', (req, res) => {
