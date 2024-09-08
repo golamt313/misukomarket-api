@@ -57,36 +57,40 @@ const generateRandomUsername = () => {
 // Routes
 app.post('/register', async (req, res) => {
     try {
-      const { username, email, password } = req.body;
-
-      console.log('Received data:', { username, email, password });
-
+      const { email, password } = req.body;
+  
+      console.log('Received data:', { email, password });
+  
       // Validate input
       if (!email || !password) {
         console.error('Validation error: Email and password are required');
         return res.status(400).json({ message: 'Email and password are required' });
       }
-
+  
       // Generate a random username
       const generatedUsername = generateRandomUsername();
-
+  
       // Check if user already exists
       const [existingUser] = await db.query('SELECT * FROM users WHERE email = ?', [email]);
       if (existingUser.length > 0) {
         console.error('User already exists with email:', email);
         return res.status(400).json({ message: 'User already exists' });
       }
-
+  
       // Hash password and insert new user
       const hashedPassword = await bcrypt.hash(password, 10);
-      await db.query('INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)', [generatedUsername, email, hashedPassword]);
-
-      res.status(201).json({ message: 'User registered successfully' });
+      const [result] = await db.query('INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)', [generatedUsername, email, hashedPassword]);
+  
+      // Generate JWT token
+      const token = jwt.sign({ id: result.insertId }, 'your_jwt_secret_key', { expiresIn: '1h' });
+  
+      // Return JWT token
+      res.status(201).json({ message: 'User registered successfully', token });
     } catch (error) {
       console.error('Error inserting user into database:', error);
       res.status(500).json({ message: 'Internal server error' });
     }
-});
+  });
 
 
 app.post('/login', async (req, res) => {
