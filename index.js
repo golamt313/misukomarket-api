@@ -1,5 +1,5 @@
 const express = require('express');
-const mysql = require('mysql2');
+const mysql = require('mysql2/promise');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const http = require('http');
@@ -11,23 +11,21 @@ const io = socketIo(server);
 
 const cors = require('cors');
 app.use(cors({
-  origin: ['http://mitsukomarket.s3-website.eu-north-1.amazonaws.com' , 'http://localhost:3000']
+  origin: ['http://mitsukomarket.s3-website.eu-north-1.amazonaws.com', 'http://localhost:3000']
 }));
 
 app.use(express.json());
 
 // Database connection
-const db = mysql.createConnection({
+const db = mysql.createPool({
   host: 'database-2.cvmk6i0u8fqm.eu-north-1.rds.amazonaws.com',
   user: 'admin',
   password: 'Hn4fZGQvvW6u75g',
   database: 'mmdb',
   port: '3306',
-});
-
-db.connect(err => {
-  if (err) throw err;
-  console.log('Connected to MySQL database');
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0
 });
 
 // Middleware to verify JWT
@@ -46,7 +44,7 @@ const authenticateJWT = (req, res, next) => {
     } else {
       res.sendStatus(401);
     }
-  };  
+};
 
 // Routes
 app.post('/register', async (req, res) => {
@@ -73,77 +71,89 @@ app.post('/register', async (req, res) => {
       console.error('Error inserting user into database:', error);
       res.status(500).json({ message: 'Internal server error' });
     }
-  });
-  
-  
-
-app.post('/login', (req, res) => {
-    const { username, password } = req.body;
-    
-    // Select the user based on the username
-    db.query('SELECT * FROM users WHERE username = ?', [username], (err, results) => {
-      if (err) return res.status(500).send('Error retrieving user');
-      
-      // Check if any user was found
-      if (results.length === 0) return res.status(401).send('Invalid credentials');
-      
-      const user = results[0];
-      
-      // Compare the input password with the hashed password in the database
-      bcrypt.compare(password, user.password_hash, (err, isMatch) => {
-        if (err) return res.status(500).send('Error comparing passwords');
-        if (!isMatch) return res.status(401).send('Invalid credentials');
-        
-        // Generate and return a JWT token if password matches
-        const token = jwt.sign({ id: user.user_id }, 'your_jwt_secret_key');
-        res.json({ token });
-      });
-    });
-  });
-  
-
-// Publicly accessible endpoint
-app.get('/listings', (req, res) => {
-  db.query('SELECT * FROM listings', (err, results) => {
-    if (err) return res.status(500).send('Error retrieving listings');
-    res.json(results);
-  });
 });
 
-app.get('/listing/:id', (req, res) => {
-    const { id } = req.params;
-    db.query('SELECT * FROM listings WHERE listing_id = ?', [id], (err, results) => {
-      if (err) return res.status(500).send('Error retrieving listing');
-      if (results.length === 0) return res.status(404).send('Listing not found');
-      res.json(results[0]);
-    });
-  });
+app.post('/login', async (req, res) => {
+    const { username, password } = req.body;
 
-app.post('/listing', authenticateJWT, (req, res) => {
+    try {
+      // Select the user based on the username
+      const [results] = await db.query('SELECT * FROM users WHERE username = ?', [username]);
+
+      // Check if any user was found
+      if (results.length === 0) return res.status(401).send('Invalid credentials');
+
+      const user = results[0];
+
+      // Compare the input password with the hashed password in the database
+      const isMatch = await bcrypt.compare(password, user.password_hash);
+      if (!isMatch) return res.status(401).send('Invalid credentials');
+
+      // Generate and return a JWT token if password matches
+      const token = jwt.sign({ id: user.user_id }, 'your_jwt_secret_key');
+      res.json({ token });
+    } catch (error) {
+      console.error('Error logging in:', error);
+      res.status(500).send('Internal server error');
+    }
+});
+
+app.get('/listings', async (req, res) => {
+  try {
+    const [results] = await db.query('SELECT * FROM listings');
+    res.json(results);
+  } catch (err) {
+    console.error('Error retrieving listings:', err);
+    res.status(500).send('Error retrieving listings');
+  }
+});
+
+app.get('/listing/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const [results] = await db.query('SELECT * FROM listings WHERE listing_id = ?', [id]);
+    if (results.length === 0) return res.status(404).send('Listing not found');
+    res.json(results[0]);
+  } catch (err) {
+    console.error('Error retrieving listing:', err);
+    res.status(500).send('Error retrieving listing');
+  }
+});
+
+app.post('/listing', authenticateJWT, async (req, res) => {
   const { title, description, price } = req.body;
-  db.query('INSERT INTO listings (title, description, price) VALUES (?, ?, ?)', [title, description, price], (err, result) => {
-    if (err) return res.status(500).send('Error creating listing');
+  try {
+    const [result] = await db.query('INSERT INTO listings (title, description, price) VALUES (?, ?, ?)', [title, description, price]);
     const newListing = { id: result.insertId, title, description, price };
     io.emit('new_listing', newListing);  // Emit event to WebSocket clients
     res.status(201).json(newListing);
-  });
+  } catch (err) {
+    console.error('Error creating listing:', err);
+    res.status(500).send('Error creating listing');
+  }
 });
 
-app.put('/listing/:id', authenticateJWT, (req, res) => {
+app.put('/listing/:id', authenticateJWT, async (req, res) => {
   const { id } = req.params;
   const { title, description, price } = req.body;
-  db.query('UPDATE listings SET title = ?, description = ?, price = ? WHERE id = ?', [title, description, price, id], (err) => {
-    if (err) return res.status(500).send('Error updating listing');
+  try {
+    await db.query('UPDATE listings SET title = ?, description = ?, price = ? WHERE listing_id = ?', [title, description, price, id]);
     res.send('Listing updated');
-  });
+  } catch (err) {
+    console.error('Error updating listing:', err);
+    res.status(500).send('Error updating listing');
+  }
 });
 
-app.delete('/listing/:id', authenticateJWT, (req, res) => {
+app.delete('/listing/:id', authenticateJWT, async (req, res) => {
   const { id } = req.params;
-  db.query('DELETE FROM listings WHERE id = ?', [id], (err) => {
-    if (err) return res.status(500).send('Error deleting listing');
+  try {
+    await db.query('DELETE FROM listings WHERE listing_id = ?', [id]);
     res.send('Listing deleted');
-  });
+  } catch (err) {
+    console.error('Error deleting listing:', err);
+    res.status(500).send('Error deleting listing');
+  }
 });
 
 // WebSocket connection
