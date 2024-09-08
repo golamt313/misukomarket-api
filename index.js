@@ -11,7 +11,7 @@ const io = socketIo(server);
 
 const cors = require('cors');
 app.use(cors({
-  origin: 'http://mitsukomarket.s3-website.eu-north-1.amazonaws.com'
+  origin: ['http://mitsukomarket.s3-website.eu-north-1.amazonaws.com' , 'http://localhost:3000']
 }));
 
 app.use(express.json());
