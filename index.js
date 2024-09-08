@@ -73,16 +73,28 @@ app.post('/register', (req, res) => {
 
 app.post('/login', (req, res) => {
     const { username, password } = req.body;
-
-    const query = `SELECT username FROM users WHERE username = ? AND bcrypt_check(?, password_hash) = 1`;
-    db.query(query, [username, password], (err, results) => {
-        if (err) return res.status(500).send('Error retrieving user');
-        if (results.length === 0) return res.status(401).send('Invalid credentials');
-
-        const token = jwt.sign({ username: results[0].username }, 'your_jwt_secret_key');
+    
+    // Select the user based on the username
+    db.query('SELECT * FROM users WHERE username = ?', [username], (err, results) => {
+      if (err) return res.status(500).send('Error retrieving user');
+      
+      // Check if any user was found
+      if (results.length === 0) return res.status(401).send('Invalid credentials');
+      
+      const user = results[0];
+      
+      // Compare the input password with the hashed password in the database
+      bcrypt.compare(password, user.password_hash, (err, isMatch) => {
+        if (err) return res.status(500).send('Error comparing passwords');
+        if (!isMatch) return res.status(401).send('Invalid credentials');
+        
+        // Generate and return a JWT token if password matches
+        const token = jwt.sign({ id: user.user_id }, 'your_jwt_secret_key');
         res.json({ token });
+      });
     });
-});  
+  });
+  
 
 // Publicly accessible endpoint
 app.get('/listings', (req, res) => {
