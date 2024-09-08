@@ -58,7 +58,7 @@ app.post('/register', (req, res) => {
         return res.status(500).send('Error hashing password');
         }
 
-        const query = 'INSERT INTO users (username, password) VALUES (?, ?)';
+        const query = 'INSERT INTO users (username, password_hash) VALUES (?, ?)';
         db.query(query, [username, hashedPassword], (err, result) => {
         if (err) {
             console.error('Error inserting user into database:', err);  // Log error
