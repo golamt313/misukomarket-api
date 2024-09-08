@@ -74,7 +74,7 @@ app.post('/register', (req, res) => {
 app.post('/login', (req, res) => {
     const { username, password } = req.body;
 
-    const query = `SELECT username FROM users WHERE username = ? AND bcrypt_check(?, password) = 1`;
+    const query = `SELECT username FROM users WHERE username = ? AND bcrypt_check(?, password_hash) = 1`;
     db.query(query, [username, password], (err, results) => {
         if (err) return res.status(500).send('Error retrieving user');
         if (results.length === 0) return res.status(401).send('Invalid credentials');
