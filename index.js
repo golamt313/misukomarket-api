@@ -59,6 +59,7 @@ app.post('/register', async (req, res) => {
   
       // Validate input
       if (!email || !password) {
+        console.error('Validation error: Email and password are required');
         return res.status(400).json({ message: 'Email and password are required' });
       }
 
@@ -68,6 +69,7 @@ app.post('/register', async (req, res) => {
       // Check if user already exists
       const [existingUser] = await db.query('SELECT * FROM users WHERE email = ?', [email]);
       if (existingUser.length > 0) {
+        console.error('User already exists with email:', email);
         return res.status(400).json({ message: 'User already exists' });
       }
   
@@ -90,13 +92,19 @@ app.post('/login', async (req, res) => {
       const [results] = await db.query('SELECT * FROM users WHERE email = ?', [email]);
       
       // Check if any user was found
-      if (results.length === 0) return res.status(401).send('Invalid credentials');
+      if (results.length === 0) {
+        console.error('Invalid credentials for email:', email);
+        return res.status(401).send('Invalid credentials');
+      }
       
       const user = results[0];
       
       // Compare the input password with the hashed password in the database
       const isMatch = await bcrypt.compare(password, user.password_hash);
-      if (!isMatch) return res.status(401).send('Invalid credentials');
+      if (!isMatch) {
+        console.error('Invalid credentials for email:', email);
+        return res.status(401).send('Invalid credentials');
+      }
       
       // Generate and return a JWT token if password matches
       const token = jwt.sign({ id: user.user_id }, 'your_jwt_secret_key');
@@ -113,6 +121,7 @@ app.get('/listings', async (req, res) => {
     const [results] = await db.query('SELECT * FROM listings');
     res.json(results);
   } catch (err) {
+    console.error('Error retrieving listings:', err);
     res.status(500).send('Error retrieving listings');
   }
 });
@@ -124,6 +133,7 @@ app.get('/listing/:id', async (req, res) => {
       if (results.length === 0) return res.status(404).send('Listing not found');
       res.json(results[0]);
     } catch (err) {
+      console.error('Error retrieving listing:', err);
       res.status(500).send('Error retrieving listing');
     }
   });
@@ -136,6 +146,7 @@ app.post('/listing', authenticateJWT, async (req, res) => {
     io.emit('new_listing', newListing);  // Emit event to WebSocket clients
     res.status(201).json(newListing);
   } catch (err) {
+    console.error('Error creating listing:', err);
     res.status(500).send('Error creating listing');
   }
 });
@@ -147,6 +158,7 @@ app.put('/listing/:id', authenticateJWT, async (req, res) => {
     await db.query('UPDATE listings SET title = ?, description = ?, price = ? WHERE listing_id = ?', [title, description, price, id]);
     res.send('Listing updated');
   } catch (err) {
+    console.error('Error updating listing:', err);
     res.status(500).send('Error updating listing');
   }
 });
@@ -157,6 +169,7 @@ app.delete('/listing/:id', authenticateJWT, async (req, res) => {
     await db.query('DELETE FROM listings WHERE listing_id = ?', [id]);
     res.send('Listing deleted');
   } catch (err) {
+    console.error('Error deleting listing:', err);
     res.status(500).send('Error deleting listing');
   }
 });
