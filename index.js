@@ -79,7 +79,7 @@ app.get('/listings', (req, res) => {
   });
 });
 
-app.get('/listing/:id', authenticateJWT, (req, res) => {
+app.get('/listing/:id', (req, res) => {
     const { id } = req.params;
     db.query('SELECT * FROM listings WHERE listing_id = ?', [id], (err, results) => {
       if (err) return res.status(500).send('Error retrieving listing');
