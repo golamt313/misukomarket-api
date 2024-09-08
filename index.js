@@ -93,34 +93,38 @@ app.post('/register', async (req, res) => {
   });
 
 
-app.post('/login', async (req, res) => {
-    const { email, password } = req.body;
-    
+  app.post('/login', async (req, res) => {
     try {
-      // Select the user based on the email
-      const [results] = await db.query('SELECT * FROM users WHERE email = ?', [email]);
-      
-      // Check if any user was found
-      if (results.length === 0) {
-        console.error('Invalid credentials for email:', email);
-        return res.status(401).send('Invalid credentials');
+      const { email, password } = req.body;
+  
+      // Validate input
+      if (!email || !password) {
+        return res.status(400).json({ message: 'Email and password are required' });
       }
-      
-      const user = results[0];
-      
-      // Compare the input password with the hashed password in the database
-      const isMatch = await bcrypt.compare(password, user.password_hash);
+  
+      // Fetch user from database
+      const [user] = await db.query('SELECT * FROM users WHERE email = ?', [email]);
+      if (user.length === 0) {
+        return res.status(401).json({ message: 'Invalid email or password' });
+      }
+  
+      // Verify password
+      const isMatch = await bcrypt.compare(password, user[0].password_hash);
       if (!isMatch) {
-        console.error('Invalid credentials for email:', email);
-        return res.status(401).send('Invalid credentials');
+        return res.status(401).json({ message: 'Invalid email or password' });
       }
-      
-      // Generate and return a JWT token if password matches
-      const token = jwt.sign({ id: user.user_id }, 'your_jwt_secret_key');
-      res.json({ token });
+  
+      // Generate JWT token
+      const token = jwt.sign({ userId: user[0].id }, process.env.JWT_SECRET, { expiresIn: '1h' });
+  
+      // Respond with token and username
+      res.json({
+        token,
+        username: user[0].username
+      });
     } catch (error) {
       console.error('Error logging in:', error);
-      res.status(500).send('Internal server error');
+      res.status(500).json({ message: 'Internal server error' });
     }
   });
 
