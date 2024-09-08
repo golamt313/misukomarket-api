@@ -79,6 +79,15 @@ app.get('/listings', (req, res) => {
   });
 });
 
+app.get('/listing/:id', authenticateJWT, (req, res) => {
+    const { id } = req.params;
+    db.query('SELECT * FROM listings WHERE listing_id = ?', [id], (err, results) => {
+      if (err) return res.status(500).send('Error retrieving listing');
+      if (results.length === 0) return res.status(404).send('Listing not found');
+      res.json(results[0]);
+    });
+  });
+
 app.post('/listing', authenticateJWT, (req, res) => {
   const { title, description, price } = req.body;
   db.query('INSERT INTO listings (title, description, price) VALUES (?, ?, ?)', [title, description, price], (err, result) => {
