@@ -49,30 +49,32 @@ const authenticateJWT = (req, res, next) => {
   };  
 
 // Routes
-app.post('/register', (req, res) => {
-    const { username, password } = req.body;
-
-    if (!username || !password) {
-        return res.status(400).send('Username and password are required');
+app.post('/register', async (req, res) => {
+    try {
+      const { username, password } = req.body;
+  
+      // Validate input
+      if (!username || !password) {
+        return res.status(400).json({ message: 'Username and password are required' });
+      }
+  
+      // Check if user already exists
+      const [existingUser] = await db.query('SELECT * FROM users WHERE username = ?', [username]);
+      if (existingUser.length > 0) {
+        return res.status(400).json({ message: 'User already exists' });
+      }
+  
+      // Hash password and insert new user
+      const hashedPassword = await bcrypt.hash(password, 10);
+      await db.query('INSERT INTO users (username, password_hash) VALUES (?, ?)', [username, hashedPassword]);
+  
+      res.status(201).json({ message: 'User registered successfully' });
+    } catch (error) {
+      console.error('Error inserting user into database:', error);
+      res.status(500).json({ message: 'Internal server error' });
     }
-
-    bcrypt.hash(password, 10, (err, hashedPassword) => {
-        if (err) {
-        console.error('Error hashing password:', err);  // Log error
-        return res.status(500).send('Error hashing password');
-        }
-
-        const query = 'INSERT INTO users (username, password_hash) VALUES (?, ?)';
-        db.query(query, [username, hashedPassword], (err, result) => {
-        if (err) {
-            console.error('Error inserting user into database:', err);  // Log error
-            return res.status(500).send('Error registering user');
-        }
-
-        res.status(201).send('User registered');
-        });
-    });
-});  
+  });
+  
   
 
 app.post('/login', (req, res) => {
