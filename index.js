@@ -46,30 +46,28 @@ const authenticateJWT = (req, res, next) => {
 
 // Routes
 app.post('/register', (req, res) => {
-  const { username, password } = req.body;
-  bcrypt.hash(password, 10, (err, hashedPassword) => {
-    if (err) return res.status(500).send('Error hashing password');
-    db.query('INSERT INTO users (username, password) VALUES (?, ?)', [username, hashedPassword], (err, result) => {
-      if (err) return res.status(500).send('Error registering user');
-      res.status(201).send('User registered');
+    const { username, password } = req.body;
+
+    const query = `INSERT INTO users (username, password) VALUES (?, bcrypt(?))`;
+    db.query(query, [username, password], (err, result) => {
+        if (err) return res.status(500).send('Error registering user');
+        res.status(201).send('User registered');
     });
-  });
 });
+  
 
 app.post('/login', (req, res) => {
-  const { username, password } = req.body;
-  db.query('SELECT * FROM users WHERE username = ?', [username], (err, results) => {
-    if (err) return res.status(500).send('Error retrieving user');
-    if (results.length === 0) return res.status(401).send('Invalid credentials');
-    const user = results[0];
-    bcrypt.compare(password, user.password, (err, isMatch) => {
-      if (err) return res.status(500).send('Error comparing passwords');
-      if (!isMatch) return res.status(401).send('Invalid credentials');
-      const token = jwt.sign({ id: user.id }, 'your_jwt_secret_key');
-      res.json({ token });
+    const { username, password } = req.body;
+
+    const query = `SELECT username FROM users WHERE username = ? AND bcrypt_check(?, password) = 1`;
+    db.query(query, [username, password], (err, results) => {
+        if (err) return res.status(500).send('Error retrieving user');
+        if (results.length === 0) return res.status(401).send('Invalid credentials');
+
+        const token = jwt.sign({ username: results[0].username }, 'your_jwt_secret_key');
+        res.json({ token });
     });
-  });
-});
+});  
 
 // Publicly accessible endpoint
 app.get('/listings', (req, res) => {
